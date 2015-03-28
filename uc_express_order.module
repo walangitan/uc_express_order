@@ -1,0 +1,174 @@
+<?php
+
+/**
+ * Implements hook_permission().
+ */
+function uc_express_order_permission() {
+  return array(
+    'administer express order' =>  array(
+      'title' => t('Administer Ubercart Express Order'),
+      'description' => t('Access the Ubercart Express Order administration page'),
+    ),
+    'access express order' =>  array(
+      'title' => t('Access Ubercart Express Order'),
+      'description' => t('Access the Ubercart Express Order page'),
+    ),
+  );
+}
+
+
+function uc_express_order_menu() {
+  $items = array();
+
+  $items['express-order'] = array(
+    'title' => 'Express Order',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_express_order_form'),
+    'access arguments' => array('access express order'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/configuration/uc_express_order'] = array(
+    'title' => 'Express Order Settings',
+    'description' => 'Ubercart Express Order Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_express_order_admin_settings'),
+    'access arguments' => array('administer express order'),
+    'file' => 'includes/uc_express_order.admin.inc',
+  );
+
+  return $items;
+}
+
+function uc_express_order_form($form, &$form_state) {
+  $form = array();
+  $header = array('Product', '','SKU', 'Price','Quantity');
+  $values = array();
+  $rows = array();
+  $top_level_product_categories = taxonomy_get_tree(variable_get('uc_express_order_vocabulary'), 0, 1);
+  foreach($top_level_product_categories as $category){
+    $form[$category->tid] = array(
+      '#type' => 'container',
+      '#title' => t($category->name),
+      '#tree' => true,
+      '#attributes' => array(
+        'class' => array(
+          'express-order-category'
+        )
+      )
+    );
+    $form[$category->tid]['section_title'] = array(
+      '#type' => 'markup',
+      '#markup' => '<h2 class="order-title">' . $category->name . '</h2>',
+    );
+    $form[$category->tid]['order_table'] = array(
+      '#prefix' => '<div id="express-order-table">',
+      '#suffix' => '</div>',
+      '#tree' => TRUE,
+      '#theme' => 'table',
+      '#header' => $header,
+      '#rows' => array(),
+    );
+    // Get all taxonomy terms within the current category
+    $children_terms = array();
+    if($category->depth > 0) {
+      $raw_children_terms = taxonomy_get_tree(variable_get('uc_express_order_vocabulary'), $category->tid);
+      foreach($raw_children_terms as $raw_child_term){
+        $children_terms[] = $raw_child_term->tid;
+      }
+    }
+    $children_terms[] = $category->tid;
+    // Load products assicated with taxonomy list
+    $children_nids = array();
+    $selected_nids = array();
+    foreach($children_terms as $child_term){
+      // Set pager = FALSE so that it returns all nids
+      $selected_nids = taxonomy_select_nodes($child_term, FALSE);
+      foreach($selected_nids as $nid){
+        $children_nids[] = $nid;
+      }
+    }
+    // Grab everything under the taxonomy
+    $nodes = node_load_multiple($children_nids);
+    //Build the table
+    $count = 0;
+    foreach($nodes as $node){
+      if(uc_express_order_node_is_right_type($node)){
+        // Build the inputs
+        $qty = array(
+          '#id' => 'qty-' . $node->nid,
+          '#type' => 'textfield',
+          '#default_value' => "0",
+          '#size' => '4',
+        );
+        $nid = array(
+          '#id' => $node->nid,
+          '#type' => 'textfield',
+          '#default_value' => $node->nid,
+        );
+        $form[$category->tid]['order_table'][] = array(
+          'qty' => &$qty,
+          'nid' => &$nid,
+        );
+        $items = field_get_items('node', $node, 'field_image_cache');
+        $raw_uri = isset($items[0]['uri']) ? $items[0]['uri'] : '';
+        $image = theme('image_style', array('style_name' => variable_get('uc_express_order_image_style'), 'path' => $raw_uri));
+        // Add data to each cell in the row
+        $form[$category->tid]['order_table']['#rows'][] = array(
+          array('data' => $image),
+          array('data' => $node->title, 'class' => 'express-order-description'),
+          array('data' => $node->model),
+          array('data' => "$" . number_format($node->price, 2), 'class' => 'express-order-price'),
+          array('data' => &$qty),
+        );
+        unset($qty);
+        unset($nid);
+        $count++;
+      }
+    }
+    if($count == 0){
+      unset($form[$category->tid]);
+    }
+  }
+  $form['submit'] = array(
+     '#type' => 'submit',
+     '#value' => 'Add to cart',
+  );
+  return $form;
+}
+
+function uc_express_order_form_validate(&$form, &$form_state){
+  foreach($form_state['values'] as $value){
+    if(is_array($value)){
+      foreach($value['order_table'] as $table){
+        if(!is_numeric($table['qty'])){
+          form_set_error('', t('Quantity must be numeric'));
+        }
+      }
+    }
+  }
+}
+
+function uc_express_order_form_submit($form, &$form_state) {
+  $top_level_product_categories = taxonomy_get_tree(variable_get('uc_express_order_vocabulary'), 0, 1);
+  foreach($top_level_product_categories as $category){
+    if(isset($form_state['values'][$category->tid]['order_table'])){
+      foreach ($form_state['values'][$category->tid]['order_table'] as $product) {
+        $quantity = $product['qty'];
+        if ($quantity > 0){
+          uc_cart_add_item($product['nid'], $product['qty']);
+        }
+      }
+    }
+  }
+  $form_state['redirect'] = 'cart';
+}
+
+function uc_express_order_node_is_right_type(&$node){
+  if(!empty($node->type)) {
+    return in_array($node->type,
+      array(
+        'product',
+      )
+    );
+  }
+}
