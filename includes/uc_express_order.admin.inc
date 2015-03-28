@@ -16,7 +16,7 @@ function uc_express_order_admin_settings() {
     $options[$vocabulary->vid] = $vocabulary->name;
   }
 
-  $image_style_options = image_style_options($include_empty = TRUE, $output = CHECK_PLAIN);
+  $image_style_options = image_style_options(TRUE, CHECK_PLAIN);
 
   $form['uc_express_order_vocabulary'] = array(
     '#type' => 'select',
