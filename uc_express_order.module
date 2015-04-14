@@ -123,7 +123,7 @@ function uc_express_order_form($form, &$form_state) {
           'qty' => &$qty,
           'nid' => &$nid,
         );
-        $items = field_get_items('node', $node, 'field_image_cache');
+        $items = field_get_items('node', $node, 'uc_product_image');
         $raw_uri = isset($items[0]['uri']) ? $items[0]['uri'] : '';
         $image = theme('image_style', array('style_name' => variable_get('uc_express_order_image_style'), 'path' => $raw_uri));
         // Add data to each cell in the row
@@ -177,7 +177,9 @@ function uc_express_order_form_submit($form, &$form_state) {
       foreach ($form_state['values'][$category->tid]['order_table'] as $product) {
         $quantity = $product['qty'];
         if ($quantity > 0){
-          uc_cart_add_item($product['nid'], $product['qty']);
+          $p = array('nid' => $product['nid'], 'qty' => $product['qty'], 'data' => array());
+          // Add the item to the cart and invoke all data hooks
+          uc_cart_add_item($p['nid'], $p['qty'], $p['data'] + module_invoke_all('uc_add_to_cart_data', $p), NULL, $msg, FALSE, FALSE);
         }
       }
     }
