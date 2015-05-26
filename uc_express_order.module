@@ -4,7 +4,6 @@
  * @file
  * Implements hook_help().
  */
-
 function uc_express_order_help($path, $arg) {
   switch ($path) {
     case 'admin/help#uc_express_order':
@@ -31,7 +30,6 @@ function uc_express_order_permission() {
 /**
  * Implements hook_menu().
  */
-
 function uc_express_order_menu() {
   $items = array();
 
@@ -55,7 +53,7 @@ function uc_express_order_menu() {
 }
 
 /**
- *
+ * Implements hook_form().
  */
 function uc_express_order_form($form, &$form_state) {
   $form = array();
@@ -66,7 +64,7 @@ function uc_express_order_form($form, &$form_state) {
   foreach ($top_level_product_categories as $category) {
     $form[$category->tid] = array(
       '#type' => 'container',
-      '#title' => t($category->name),
+      '#title' => $category->name,
       '#tree' => TRUE,
       '#attributes' => array(
         'class' => array(
@@ -135,7 +133,10 @@ function uc_express_order_form($form, &$form_state) {
           array('data' => $image),
           array('data' => $node->title, 'class' => 'express-order-description'),
           array('data' => $node->model),
-          array('data' => "$" . number_format($node->price, 2), 'class' => 'express-order-price'),
+          array(
+            'data' => "$" . number_format($node->price, 2),
+            'class' => 'express-order-price',
+          ),
           array('data' => &$qty),
         );
         unset($qty);
@@ -155,9 +156,8 @@ function uc_express_order_form($form, &$form_state) {
 }
 
 /**
- * Implements hook_form_validate.
+ * Implements hook_form_validate().
  */
-
 function uc_express_order_form_validate(&$form, &$form_state) {
   foreach ($form_state['values'] as $value) {
     if (is_array($value)) {
@@ -171,9 +171,8 @@ function uc_express_order_form_validate(&$form, &$form_state) {
 }
 
 /**
- * Implements hook_form_submit.
+ * Implements hook_form_submit().
  */
-
 function uc_express_order_form_submit($form, &$form_state) {
   $top_level_product_categories = taxonomy_get_tree(variable_get('uc_express_order_vocabulary'), 0, 1);
   foreach ($top_level_product_categories as $category) {
@@ -181,7 +180,11 @@ function uc_express_order_form_submit($form, &$form_state) {
       foreach ($form_state['values'][$category->tid]['order_table'] as $product) {
         $quantity = $product['qty'];
         if ($quantity > 0) {
-          $p = array('nid' => $product['nid'], 'qty' => $product['qty'], 'data' => array());
+          $p = array(
+            'nid' => $product['nid'],
+            'qty' => $product['qty'],
+            'data' => array(),
+          );
           // Add the item to the cart and invoke all data hooks.
           uc_cart_add_item($p['nid'], $p['qty'], $p['data'] + module_invoke_all('uc_add_to_cart_data', $p), NULL, $msg, FALSE, FALSE);
         }
@@ -192,7 +195,7 @@ function uc_express_order_form_submit($form, &$form_state) {
 }
 
 /**
- *
+ * Helper function checks whether a node is of the product type.
  */
 function uc_express_order_node_is_right_type(&$node) {
   if (!empty($node->type)) {
